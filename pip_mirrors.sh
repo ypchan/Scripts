@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+echo "阿里云:"
+echo "    http://mirrors.aliyun.com/pypi/simple/"
+echo "中科大:"
+echo "    https://pypi.mirrors.ustc.edu.cn/simple/"
+echo "豆瓣:"
+echo "    http://pypi.douban.com/simple"
+echo "中科院:"
+echo "    http://pypi.mirrors.opencas.cn/simple/"
+echo "清华:"
+echo "    https://pypi.tuna.tsinghua.edu.cn/simple/"
