@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 '''
-filter_coantigs.py -- filter genome assemblies by length
+filter_contig_by_length.py -- filter draft genome assemblies by contig length
 
 DATE:
     2020-01-05
@@ -26,23 +26,23 @@ def parse_args():
     args : a python3 object, and arguments as args.<arg>
     '''
     parser = argparse.ArgumentParser(description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter)
+                                    formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument('input',
                         metavar='<in-fasta>',
                         type=str,
-                        help='input file in FASTA format')
-
-    parser.add_argument('-l', '--length',
-                        type=int,
-                        default=1000,
-                        metavar='<int>',
-                        help='set minimal length of the contigs [default: 1000]')
+                        help='input file in FASTA format (.gz allowed)')
 
     parser.add_argument('out',
                         type=str,
                         metavar='<out-fasta>',
-                        help='output filename')
+                        help='output filename (suffix .gz means output in compressed format)')
+    
+    parser.add_argument('-l', '--length',
+                        type=int,
+                        default=1000,
+                        metavar='<int>',
+                        help='set minimal length of the contigs (default to 1000)')
     args = parser.parse_args()
     return args
 
@@ -74,7 +74,7 @@ def fasta_2dict(infile):
 
 def filter_by_length(fa_dict, length):
     '''
-    Removed contigs that short than length
+    Removed contigs that short than given length
 
     Parameter
     ---------
@@ -98,21 +98,24 @@ def filter_by_length(fa_dict, length):
 
 def out_fasta(filtered_dict, outfile):
     '''
-    Output filtered fasta file. If outfile not be specified, output will be redirected to stdout
+    Output filtered fasta file
 
     Parameter
     --------
     filtered_dict : dict
         filtered fasta dictionary
-
+    outfile : str
+        outfile name, Output gziped file if outfile ends with '.gz'
+    
     Return
     ------
     NULL
     '''
-    with open(outfile, 'wt') as outfa_fh:
-        for contig_id,seq_lst in filtered_dict.items():
-            outfa_fh.write(contig_id)
-            outfa_fh.write(''.join(seq_lst))
+    outfh = gzip.open(outfile, 'wt') if outfile.endswith('.gz') else open(outfile, 'wt')
+    for contig_id,seq_lst in filtered_dict.items():
+        outfh.write(contig_id)
+        outfh.write(''.join(seq_lst))
+    outfh.close()
 
 if __name__ == '__main__':
     args = parse_args()
