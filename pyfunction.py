@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 
 def parse_fa_2rawdict(fafile):
     '''Parse fasta file(.gz allowed) into python3 dictionary, '>' and newline signs(\n) were saved
@@ -148,3 +149,48 @@ def calculate_sequence_statistic_values(sorted_fa_dict):
     count_N = sum(contigs_N_count_lst)
     statistics_dict['count_N'] = count_N
     return statistics_dict
+
+def base_locater(fa_dict, seq_id, position_tuple):
+    '''Get the base according position(s)
+    
+    Input:
+        position_tuple : 11-15, 11, 12, 12-13
+    Result:
+        Flag | Bases
+        -----|-------
+        11-15: ATGCA
+        11   : A 
+        12   : T
+        12-13: TG
+
+    Args:
+        fa_dict (dict) : a genome fasta. Keys represent seq identifiers, and values represent sequences
+        seq_id (str) : sequence identifier
+        position_tuple (tuple) : a int tuple
+    
+    Return:
+        NULL
+    '''
+    max_len_flag = max([len(i) for i in position_tuple])
+    for pos in position_tuple:
+        if '-' in pos:
+            pos_start, pos_end = [int(i) for i in pos.split('-')]
+            show_bases = fa_dict[seq_id][pos_start - 1: pos_end]
+            print(f'{pos:<{max_len_flag}} : {show_bases}', file=sys.stdout, flush=True)
+        else:
+            pos = int(pos)
+            show_base = fa_dict[seq_id][pos]
+            print(f'{pos:<{max_len_flag}} : {show_base}', file=sys.stdout, flush=True)
+
+class Phylip():
+    def __init__(self, infile='alignment.phy', filetype='sequential'):
+        self.basename = os.path.basename(infile)
+        self.filetype = filetype
+        self.abspath = os.path.abspath(infile)
+        
+        infile_fh = open(infile, 'rt')
+        self.__line_lst =  infile_fh.readlines()
+        infile_fh.close()
+
+    def taxons(self):
+        
