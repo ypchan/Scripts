@@ -11,7 +11,6 @@ NOTES:
 '''
 
 import sys
-import gzip
 import argparse
 
 def parse_args():
@@ -29,109 +28,115 @@ def parse_args():
         type=str,
         help='a tab-separated map file. The first row tags: speceis_id gene1-accession gene2-accession')
     
-    parser.add_argument('-a', '--alignment_files',
+    parser.add_argument('-M', '--Mapfile',
         required=True,
-        metavar='<alignment.fa>',
+        metavar='<Map_file>',
         type=str,
-        nargs='+',
-        help='multiple alignment files, the IDs must be consistent with IDs in mapfile')
-    
-    parser.add_argument('-t', '--alignment_type',
-        default='fasta',
-        type=str,
-        choices=['fasta', 'clustal', 'phylip-sequential', 'phylip-interleaved', 'nexus'],
-        help='multiple alignment files, the IDs must be consistent with IDs in mapfile')
-
+        help='a tab-separated map file. The 1st column lists marker names, the 2nd cloumn lists corresponding alignment files')
     args = parser.parse_args()
     return args
 
-def parse_alignment_2dict(alignment_tup, alignment_type):
-    '''Parse multiple alignment files into dictionary
-
-    Args:
-        alignment_tup (tuple) : multiple alignment files
-        alignment_file (str)  :
-    
-    Return:
-        dictionary : 
-    '''
-    alignment_dict = {}
-    for alignment_file in alignment_tup:
-        if alignment_type == 'fasta':
-            with open(alignment_file) as filefh:
-                for line in filefh:
-                    line = line.rstrip('\n')
-                    if line.startswith('>'):
-                        fa_id = line.lstrip('>')
-                        alignment_dict[fa_id] = []
-                    else:
-                        alignment_dict[fa_id].append(line)
-
-def join_mapfile_alginmentfile(map_file, alignment_dict):
+def build_map_dict(map_file):
     '''Parse mapfile into nested dictionary
 
-    dict = {gene1:{taxon1:seq, taxon2:seq,...},...}
     Args:
         map_file (str) : a tab-separated file
     
     Return：
         dict ： a nested dictionary
     '''
-    mapped_alignment_dict = {}
-    mapfile_fh = open(map_file, 'rt')
-    line_lst = mapfile_fh.readlines()
-    mapfile_fh.close()
+    map_alignment_dict = {}
+    with open(map_file) as mapfh:
+        for line in mapfh:
+            taxa, marker, accession = line.rstrip('\n').split('\t')
+            map_alignment_dict[taxa] = {}
+            map_alignment_dict[taxa][marker] = ''
+            if accession == 'NA':
+                map_alignment_dict[taxa][marker] = 0
+            else:
+                map_alignment_dict[taxa][marker] = accession
+    return map_alignment_dict
 
-    line_lst = [line.rstrip('\n') for line in line_lst]
-    marker_lst = line_lst[0].split('\t')[1:]
-    taxa_lst = [line.split('\t')[0] for line in line_lst[1:]]
-    accession_lst = [line.split('\t')[1:] for line in line_lst[1:]]
-
-    for col, marker in enumerate(marker_lst):
-        mapped_alignment_dict[marker] = {}
-        for row, taxon in enumerate(taxa_lst):
-            accession = accession_lst[row][col]
-            aligned_seq = alignment_dict.get(accession, '0')
-            mapped_alignment_dict[marker][taxon] = aligned_seq
-
-    formatted_mapped_alignment_dict = {}
-    for marker, taxa_dict in mapped_alignment_dict.items():
-        formatted_mapped_alignment_dict[marker] = {}
-        
-        for taxon, aligned_seq in taxa_dict.items():
-            if aligned_seq != '0':
-                alignment_seq_len = len(aligned_seq)
-                break
-        for taxon, aligned_seq in taxa_dict.items():
-            if aligned_seq == '0':
-                taxa_dict[taxon] = '-' * alignment_seq_len
-        
-        formatted_mapped_alignment_dict[marker] = taxa_dict
-    return formatted_mapped_alignment_dict
-
-def out_concatenated_seq(formatted_mapped_alignment_dict):
-    '''Output concatenated alignment sequences in FASTA format
+def get_marker_alignment_dict(marker2alignment):
+    '''Parse alignment files to dictionary
 
     Args:
-        formatted_mapped_alignment_dict (dict) : dict = {gene1:{taxon1:seq, taxon2:seq,...},...}
-
+        marker2alignment (str) : mapfilename, a tab-separated map file. The 1st column lists marker names, the 2nd cloumn lists corresponding alignment files
+    
     Return:
-        NULL    
+        dict : a nested dictionary
     '''
-    marker_lst = formatted_mapped_alignment_dict.keys()
-    for marker, taxa_dict in formatted_mapped_alignment_dict.items():
-        taxa_lst = taxa_dict.keys()
+    marker_alignment_dict = {}
+    with open(marker2alignment) as map2fh:
+        for line in map2fh:
+            marker, alignmentfile = line.rstrip('\n').split('\t')
+            marker_alignment_dict[marker] = {}
+            with open(alignmentfile) as alignment_fh:
+                for line in alignment_fh:
+                    line = line.rstrip('\n')
+                    if line.startswith('>'):
+                        accession = line.lstrip('>')
+                        marker_alignment_dict[marker][accession] = []
+                    else:
+                        marker_alignment_dict[marker][accession].append(line)
+            
+            marker_alignment_dict[marker] = {k:''.join(v) for k,v in marker_alignment_dict[marker].items()}
+    return marker_alignment_dict
+
+def load_map_alignment_dict(map_alignment_dict, marker_alignment_dict):
+    '''Load aligned seq into map_alignment_dict
+    '''
+    updated_map_alignment_dict = {}
+    for taxa, taxa_dict in map_alignment_dict.items():
+        updated_map_alignment_dict[taxa] = {}
+        for marker,accession in taxa_dict.items():
+            if not accession:
+                updated_map_alignment_dict[taxa][marker] = 0
+            else:
+                seq = marker_alignment_dict[marker][accession]
+                updated_map_alignment_dict[taxa][marker] = seq
+    return updated_map_alignment_dict
+
+def add_blank_seq_2alignment_dict(updated_map_alignment_dict):
+    marker_aligned_length_dict = {}
+
+    for taxa, marker_dict in updated_map_alignment_dict.items():
+        for marker, seq in marker_dict.items():
+            if seq != 0 and marker not in marker_aligned_length_dict:
+                marker_aligned_length_dict[maker] = len(seq)
+
+    add_blank_map_alignment_dict = {}
+    for taxa, marker_dict in updated_map_alignment_dict.items():
+        add_blank_map_alignment_dict[taxa] = {}
+        for marker, seq in marker_dict.items():
+            if seq == 0:
+                blank_seq = '-' * marker_aligned_length_dict[marker]
+                add_blank_map_alignment_dict[taxa][marker] = blank_seq
+            else:
+                add_blank_map_alignment_dict[taxa][marker] = seq
+    return add_blank_map_alignment_dict
+
+def out_concatenated_seq(add_blank_map_alignment_dict):
+    '''Output concatenated alignment sequences in FASTA format
+    '''
+    taxa_lst = add_blank_map_alignment_dict.keys()
+    for taxa, taxa_dict in add_blank_map_alignment_dict.items():
+        marker_lst = taxa_dict.keys()
         break
     
-    for taxon in taxa_lst:
-        concatenated_seq_lst = []
+    for taxa in taxa_lst:
+        seq_lst = []
+        print(f'>{taxa}', file=sys.stdout, flush=True)
         for marker in marker_lst:
-            concatenated_seq_lst.append(formatted_mapped_alignment_dict[marker][taxon])
-        concatenated_seq = ''.join(concatenated_seq_lst)
-        print(f'>{taxon}\n{concatenated_seq}', file=sys.stdout, flush=True)
+            seq = add_blank_map_alignment_dict[taxa].get(marker)
+            seq_lst.append(seq)
+        contatenated_seq = ''.join(seq_lst)
+        print(contatenated_seq, file=sys.stdout, flush=True)
 
 if __name__ == '__main__':
     args = parse_args()
-    alignment_dict = parse_alignment_2dict(args.alignment_files, args.alignment_type)
-    formatted_mapped_alignment_dict = join_mapfile_alginmentfile(args.mapfile, alignment_dict)
-    out_concatenated_seq(formatted_mapped_alignment_dict)
+    map_alignment_dict = build_map_dict(args.mapfile)
+    marker_alignment_dict = get_marker_alignment_dict(args.Mapfile)
+    updated_map_alignment_dict = load_map_alignment_dict(map_alignment_dict, marker_alignment_dict)
+    add_blank_map_alignment_dict = add_blank_seq_2alignment_dict(updated_map_alignment_dict)
+    out_concatenated_seq(add_blank_map_alignment_dict)
