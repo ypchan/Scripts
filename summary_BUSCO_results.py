@@ -31,6 +31,7 @@ def parse_busco_result2lst(busco_result_file):
             24      Missing BUSCOs (M)
             1706    Total BUSCO groups searched
     '''
+    # Using re module to catuche the wanted fileds
     with open(busco_result_file) as buscofh:
         for line in buscofh:
             line = line.strip()
@@ -60,17 +61,21 @@ def parse_busco_result2lst(busco_result_file):
     return [genome_label, per_C, per_S, per_D, per_F, per_M, num_C, num_S, num_D, num_F, num_M, num_Total]
 
 if __name__ == '__main__':
+    # Check input, if no input, the script will exit with error code 1
     if len(sys.argv) == 1:
         print(__doc__, file=sys.stderr, flush=True)
         sys.exit(1)
+
+    # Check whether the user wants help
     if sys.argv[1] in ['-h', '--h', '--help']:
         print(__doc__, file=sys.stderr, flush=True)
         sys.exit(1)
-
+    
+    # Table header line
     head_lst = ['genome_label', 'C', 'S', 'D', 'F', 'M', 'Complete BUSCOS (C)', 'Complete and single-copy BUSCOs (S)', 'Complete and duplicated BUSCOs (D)', 'Fragemented BUSCOs (F)', 'Missing BUSCOs (M)', 'Total BUSCO groups searched']
     print('\t'.join(head_lst), file=sys.stdout, flush=True)
 
-
+    # Read in from stdin and output result to stdout
     with fileinput.input(files=sys.argv[1]) as filefh:
         for file in filefh:
             out_values_lst = parse_busco_result2lst(file.strip('\n'))
