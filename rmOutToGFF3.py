@@ -1,15 +1,12 @@
 #!/usr/bin/env python
 
 '''
-rmout_dictToGFF3.py -- parse RepeatMasker .out file to gff3.
+rmOutToGFF3.py -- parse RepeatMasker *.out file to gff3.
 
-Author:
-    Y.P. Chen
-Date:
-    2020-10-24
+Author & date:
+    chenyanpeng1992@outlook.com, 2020-10-24
 Example:
-    1. rmout_dictToGFF3.py rm.out > rm.gff3
-    2. cat rm.out | rmout_dictToGFF3.py - > rm.gff3
+    rmOutToGFF3.py rm.out > rm.gff3
 '''
 
 import sys
@@ -18,8 +15,7 @@ import fileinput
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Any bugs should be reported to 764022822@qq.com")
+        formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument('input',
         metavar='<rm.out>',
@@ -28,11 +24,11 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def rmout_2_dict(in_file):
+def rmout_2_gff3(in_file):
     '''Parse rmout to python3 dictionary.
 
-    #rm.out format
-
+    RepeatMasker output：
+    ---------------------------------------------------------------------------------------------------------------------------
        SW   perc perc perc  query           position in query        matching          repeat           position in repeat
     score   div. del. ins.  sequence        begin  end      (left)   repeat            class/family   begin  end    (left)   ID
 
@@ -42,105 +38,60 @@ def rmout_2_dict(in_file):
     577   23.8  0.0  7.6  ML735208.1       34170  34310  (15312) C rnd-4_family-1122 DNA/TcMar-Ant1 (6069)   1523   1393    4
     '''
     rmout_dict = {}
-    num_line = 0
-    for line in fileinput.input(in_file):
-        num_line += 1
-        if num_line <= 3:
-            continue
+    infh = open(in_file)
+    line_lst = infh.readlines()
+    infh.close()
 
-        line_lst = line.rstrip('\n').split()
-        ID = line_lst[14]
+    # Skipping head 2 lines
+    line_lst = line_lst[3:]
+    line_lst = [line.split() for line in line_lst]
+    # Delete duplicated record, only records star marked will be saved
+    duplicate_record_index_lst = []
+    for index,lst in enumerate(line_lst):
+        if lst[-1] == '*':
+            duplicate_record_index_lst.append(index - 1)
 
-        #1
-        contig_id = line_lst[4]
-        #2
-        source = 'RepeatMasker'
-        #3
-        type_str = 'repeat_region'
-        #4
-        start = line_lst[5]
-        #5
-        end = line_lst[6]
-        #6
-        score = '.'
-        #7
-        strand = line_lst[8]
-        if line_lst[8] == 'C':
+    for index in sorted(duplicate_record_index_lst, reverse=True):
+            del line_lst[index]
+
+    num_repeats = len(line_lst)
+    num_digits = len(str(num_repeats))
+
+    # Gff3 header
+    print('##gff-version 3', file=sys.stdout, flush=True)
+
+    last_contig_id = 0
+    source = 'RepeatMasker'
+    feature_type = 'dispersed_repeat'
+    phase = '.'
+
+    n = 0
+    for lst in line_lst:
+        n += 1
+        contig_id = lst[4]
+        feature_start = lst[5]
+        feature_end = lst[6]
+        contig_len = int(feature_end) + int(lst[7].lstrip('(').rstrip(')'))
+        score = lst[0].strip()
+        strand = lst[8]
+        target_match = lst[9]
+        target_start = lst[11]
+        target_end = lst[12]
+        name = lst[10]
+        target_len = int(lst[13].lstrip('(').rstrip(')')) + int(target_end)
+        note = f'Note=target_len_{target_len}'
+        attributes = f'ID=repeat{n:0{num_digits}};Target={target_match} {target_start} {target_end};Note=target_len {target_len}'
+        if strand == 'C':
             strand = '-'
-        #8
-        phase = '.'
 
-        #9 attributes
-        repeat_match = line_lst[9]
-        repeat_class = line_lst[10]
-
-        subject_left = int(line_lst[7].lstrip('(').rstrip(')'))
-        contig_length = int(end) + subject_left
-
-        if ID not in rmout_dict:
-            rmout_dict[ID] = {}
-            rmout_dict[ID]['contig_id'] = contig_id
-            rmout_dict[ID]['source'] = source
-            rmout_dict[ID]['type'] = type_str
-            rmout_dict[ID]['start'] = start
-            rmout_dict[ID]['end'] = end
-            rmout_dict[ID]['score'] = score
-            rmout_dict[ID]['strand'] = strand
-            rmout_dict[ID]['phase'] = phase
-            rmout_dict[ID]['contig_length'] = contig_length
-            rmout_dict[ID]['repeat_match'] = repeat_match
-            rmout_dict[ID]['repeat_class'] = repeat_class
-        else:
-            if len(line_lst) == 16:
-                rmout_dict[ID]['contig_id'] = contig_id
-                rmout_dict[ID]['source'] = source
-                rmout_dict[ID]['type'] = type_str
-                rmout_dict[ID]['start'] = start
-                rmout_dict[ID]['end'] = end
-                rmout_dict[ID]['score'] = score
-                rmout_dict[ID]['strand'] = strand
-                rmout_dict[ID]['phase'] = phase
-                rmout_dict[ID]['repeat_match'] = repeat_match
-                rmout_dict[ID]['repeat_class'] = repeat_class
-
-    return rmout_dict
-
-def rmout_dict_2_gff3(rmout_dict):
-    '''Output gff3.
-    '''
-    gff3_version = '##gff-version 3'
-    print(gff3_version, file=sys.stdout, flush=True)
-
-    contig_list = []
-    for ID in rmout_dict:
-        contig_id = rmout_dict[ID]['contig_id']
-        source = rmout_dict[ID]['source']
-        type_str = rmout_dict[ID]['type']
-        start = rmout_dict[ID]['start']
-        end = rmout_dict[ID]['end']
-        score = rmout_dict[ID]['score']
-        strand = rmout_dict[ID]['strand']
-        phase = rmout_dict[ID]['phase']
-        contig_length = rmout_dict[ID]['contig_length']
-        repeat_match = rmout_dict[ID]['repeat_match']
-        repeat_class = rmout_dict[ID]['repeat_class']
-
-        if contig_id not in contig_list:
-            contig_list.append(contig_id)
-            contig_info = f'##sequence-region {contig_id} 1 {contig_length}'
-            print(contig_info, file=sys.stdout, flush=True)
-
-        #9 attributes
-        attributes_info = f'ID=repeat{ID};Name={repeat_match};Note=repeat_class:{repeat_class}'
-
-        out_line_lst = [contig_id, source, type_str, start, end, score, strand, phase, attributes_info]
+        if contig_id != last_contig_id:
+            sequence_region = f'##sequence-region {contig_id} 1 {contig_len}'
+            print(sequence_region, file=sys.stdout, flush=True)
+            last_contig_id = contig_id
+        out_line_lst = [contig_id, source, feature_type, feature_start, feature_end, score, strand, phase, attributes]
         out_line = '\t'.join(out_line_lst)
         print(out_line, file=sys.stdout, flush=True)
 
-def main():
-    args = parse_args()
-    rmout_dict = rmout_2_dict(args.input)
-    rmout_dict_2_gff3(rmout_dict)
-
 if __name__ == "__main__":
-    sys.exit(main())
+    args = parse_args()
+    rmout_2_gff3(args.input)

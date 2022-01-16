@@ -119,32 +119,25 @@ def get_obj_by_tax_name(tax_name):
 
 def get_summary(assembly_descriptors:object):
     metadata_dict = {}
-
     for assembly in assembly_descriptors.assemblies:
         assembly_dict = assembly.to_dict()['assembly']
         assembly_accession = assembly_dict['assembly_accession']
         del assembly_dict['assembly_accession']
-
         if len(assembly_dict['chromosomes']) > 1:
             assembly_dict['chromosomes'] = '-'.join(assembly_dict['chromosomes'])
         else:
             assembly_dict['chromosomes'] = ''
-
         if assembly_dict['annotation_metadata']:
             assembly_dict['annotation_metadata'] = '1'
-
         if assembly_accession not in metadata_dict:
             metadata_dict[assembly_accession] = {}
         else:
             print('ERROR: duplicate assembly accession', file=sys.stderr, flush=True)
-
         origin_dict = assembly_dict['org']
         del assembly_dict['org']
-
         rm_keys = ['assembly_counts', 'merged_tax_ids']
         for key in rm_keys:
             del origin_dict[key]
-
         metadata_dict[assembly_accession].update(assembly_dict)
         metadata_dict[assembly_accession].update(origin_dict)
     return metadata_dict
@@ -157,25 +150,21 @@ def out_summary_table(metadata_dict):
         head_lst = ['assembly_accession']
         line_lst = [accession]
         n += 1
-
         for term, info in metadata_dict[accession].items():
             if n == 1:
                 head_lst.append(term)
             if not info:
                 info = ''
             line_lst.append(info)
-
         if n == 1:
             head_line = '\t'.join(head_lst)
             print(head_line, file=sys.stdout, flush=True)
-
         try:
             line_lst = [str(i) for i in line_lst]
             line = '\t'.join(line_lst)
         except TypeError:
             print(line_lst, file=sys.stderr, flush=True)
             sys.exit(1)
-
         print(line, file=sys.stdout, flush=True)
 
 if __name__ == '__main__':
