@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 '''
-determine_genome_assemble_level.py -- determine the genome assemble level (contig or scaffold)
+genome_assemble_level.py -- determine the genome assemble level (contig or scaffold)
 
 
 Date: 2020-10-9
