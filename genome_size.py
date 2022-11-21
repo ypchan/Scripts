@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 '''
-genome_size.py -- Genome size(bp) = No. A + No. T + No.G + No. C
+ftk_genome_size.py -- Genome size(bp) = No. A + No. T + No.G + No. C
 
 Date: 2020-10-14
 Bugs: Any bugs should be reported to yanpengch@qq.com
@@ -35,6 +35,7 @@ parser.add_argument('--cpu',
 
 args = parser.parse_args()
 
+
 def count_genome_base(genome):
     '''Check whether the genome includes 'N'
     '''
@@ -48,13 +49,15 @@ def count_genome_base(genome):
             if line.startswith('>'):
                 continue
             else:
-               A_base_count.append(line.count('A'))
-               T_base_count.append(line.count('T'))
-               G_base_count.append(line.count('G'))
-               C_base_count.append(line.count('C'))
-    total_base = sum(A_base_count) + sum(T_base_count) + sum(G_base_count) + sum(C_base_count)
-   
-    print(genome, total_base, sep = '\t', file = sys.stdout, flush = True)
+                A_base_count.append(line.count('A'))
+                T_base_count.append(line.count('T'))
+                G_base_count.append(line.count('G'))
+                C_base_count.append(line.count('C'))
+    total_base = sum(A_base_count) + sum(T_base_count) + \
+        sum(G_base_count) + sum(C_base_count)
+
+    print(genome, total_base, sep='\t', file=sys.stdout, flush=True)
+
 
 if __name__ == '__main__':
     if args.genome_path:
@@ -63,8 +66,9 @@ if __name__ == '__main__':
 
     if args.genome_list:
         with open(args.genome_list) as listfh:
-            genome_path_lst = [genome_path.strip().rstrip('\n') for genome_path in listfh.readlines()]
-        
+            genome_path_lst = [genome_path.strip().rstrip('\n')
+                               for genome_path in listfh.readlines()]
+
         # multiple cpu
         pool = multiprocessing.Pool(args.cpu)
         pool.map(count_genome_base, genome_path_lst)
