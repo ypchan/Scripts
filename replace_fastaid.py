@@ -10,41 +10,43 @@ Usage:
 import sys
 import argparse
 
+
 def parse_args():
     parser = argparse.ArgumentParser(
-    	description=__doc__,
+        description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument('map',
-        metavar='<map.txt>',
-        type=str,
-        help='input filename, amino acid codons should be abbreviated or completed.')
-    
+                        metavar='<map.txt>',
+                        type=str,
+                        help='input filename, amino acid codons should be abbreviated or completed.')
+
     parser.add_argument('fasta',
-        metavar='<multifasta.fna>',
-        type=str,
-        help='input file must be in FASTA format')
-    
+                        metavar='<multifasta.fna>',
+                        type=str,
+                        help='input file must be in FASTA format')
+
     parser.add_argument('out',
-        metavar='<out.fna>',
-        type=str,
-        help='output file name')
-    
+                        metavar='<out.fna>',
+                        type=str,
+                        help='output file name')
+
     parser.add_argument('--map_header',
-        action='store_true',
-        help='if --map_header, the map file with header line')
-    
+                        action='store_true',
+                        help='if --map_header, the map file with header line')
+
     parser.add_argument('--oldid_field',
-        metavar='<int>',
-        type=int,
-        help='specify old field')
-    
+                        metavar='<int>',
+                        type=int,
+                        help='specify old field')
+
     parser.add_argument('--new_id_field',
-        metavar='<int>',
-        type=int,
-        help='specify new id field')
+                        metavar='<int>',
+                        type=int,
+                        help='specify new id field')
     args = parser.parse_args()
     return args
+
 
 def fastaid_map(mapfile, header=True):
     '''group id and corresponding single-fasta id
@@ -61,6 +63,7 @@ def fastaid_map(mapfile, header=True):
             mapdict[raw] = new
     return mapdict
 
+
 def fasta2dict(multifastafile):
     fadict = {}
     with open(sys.argv[2]) as multifastafh:
@@ -70,8 +73,9 @@ def fasta2dict(multifastafile):
                 fadict[fastaid] = []
             else:
                 fadict[fastaid].append(line)
-    fadict = {k:''.join(v) for k,v in fadict.items()}
+    fadict = {k: ''.join(v) for k, v in fadict.items()}
     return fadict
+
 
 if __name__ == '__main__':
     args = parse_args()
@@ -79,5 +83,5 @@ if __name__ == '__main__':
     mapdict = fastaid_map(args.map, args.map_header)
     fadict = fasta2dict(args.fasta)
     with open(sys.argv[3], 'wt') as outfh:
-        for k,v in fadict.items():
+        for k, v in fadict.items():
             outfh.write(f'>{mapdict[k]}\n{v}')

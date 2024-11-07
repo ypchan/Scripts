@@ -1,134 +1,130 @@
 #!/usr/bin/env python3
 '''
-ftk_gc_content.py -- gc-content percentage is calculated as the following
-                     count(G + C) / count(A + T + G + C) * 100%
+ftk_gc_content_without_TE.py -- gc content is calculated as the following
+                                count(G + C) / count(A + T + G + C) * 100%
 
-DATE: 2020-10-10
-BUGS: Any bugs should be reported to yanpengch@qq.com
+Date: 2020-10-10
+Bugs: Any bugs should be reported to yanpengch@qq.com
+
+Input:
+../00_genome_data/Aciaci1.fna  ../02_repeatmasker/Aciaci1_repeatmasker/Aciaci1.fna.out
+../00_genome_data/Corma2.fna   ../02_repeatmasker/Corma2_repeatmasker/Corma2.fna.out
 '''
-
+import os
 import sys
 import argparse
-import multiprocessing
+
 
 parser = argparse.ArgumentParser(
     description=__doc__,
     formatter_class=argparse.RawDescriptionHelpFormatter)
 
-input_item = parser.add_mutually_exclusive_group(required=True)
-input_item.add_argument(
-    '-g',
-    '--genome',
-    type=str,
-    metavar='GENOME',
-    help='specify a genome file in FASTA format')
-
-input_item.add_argument(
-    '-G',
-    '--genome_list',
-    type=str,
-    metavar='GENOME_LIST',
-    help='a text file, one record per line')
-
 parser.add_argument(
-    '-t',
-    '--genome_type',
+    '-i',
+    '--input',
     type=str,
-    metavar='GENOME_TYPE',
-    default='normal',
-    choices=['normal', 'hardmasked', 'softmasked'],
-    help='genome type can be normal/hardmasked/softmasked. \
-        if it is normal or hardmasked, only GC content;\
-             else GC(overall) GC(norepeat) GC(repeat)')
+    required=True,
+    help='genome file and rm result.out(optional)')
 
-parser.add_argument(
-    '-c',
-    '--cpu',
-    type=int,
-    metavar='INT',
-    default=4,
-    help='#cpu to use, only applies with --genome_list')
 
 args = parser.parse_args()
 
 
-def calculate_gc_content(genome, genome_type):
+def grep_sort_rmout(rm_out: str) -> list:
+    '''filter unuseful lines
+    remove head 3 lines, sort by contig id and start position
+    '''
+    tmp_out = rm_out + '_tmp'
+    command = f"grep -v -e 'position in query' -e 'class/family' -e '^$' -e 'rRNA' -e 'Satellite' -e 'Satellite/centr' -e 'Simple_repeat' -e 'Low_complexity' -e '*$' {rm_out} > {tmp_out}"
+    p = os.system(command)
+    if p != 0:
+        sys.exit(f'Error: run {command}')
+
+    with open(tmp_out) as infh:
+        interspersed_repeat_lst = infh.readlines()
+
+    command1 = f'rm {tmp_out}'
+    p1 = os.system(command1)
+    if p1 != 0:
+        sys.exit(f'Eror: run {command1}')
+
+    interspersed_repeat_lst = [line.rstrip(
+        '\n').split() for line in interspersed_repeat_lst]
+    return interspersed_repeat_lst
+
+
+def calculate_gc_content(genome, interspersed_repeat_lst):
     '''Check whether the genome caontains unknown or masked character 'N'
     '''
-    A_base_count = []
-    T_base_count = []
-    G_base_count = []
-    C_base_count = []
-
-    a_base_count = []
-    t_base_count = []
-    g_base_count = []
-    c_base_count = []
-
+    fa_dict = dict()
     with open(genome) as fh:
         for line in fh:
             line = line.rstrip('\n')
             if line.startswith('>'):
-                continue
+                contig_id = line.lstrip('>').split()[0]
+                fa_dict[contig_id] = []
             else:
-                A_base_count.append(line.count('A'))
-                T_base_count.append(line.count('T'))
-                G_base_count.append(line.count('G'))
-                C_base_count.append(line.count('C'))
-                a_base_count.append(line.count('a'))
-                t_base_count.append(line.count('t'))
-                g_base_count.append(line.count('g'))
-                c_base_count.append(line.count('c'))
+                line = line.upper()
+                fa_dict[contig_id].append(line)
 
-    total_base = sum(A_base_count) \
-        + sum(T_base_count) \
-        + sum(G_base_count) \
-        + sum(C_base_count) \
-        + sum(a_base_count) \
-        + sum(t_base_count) \
-        + sum(g_base_count) \
-        + sum(c_base_count)
+    fa_dict = {k: ''.join(seq_lst) for k, seq_lst in fa_dict.items()}
 
-    clear_base = sum(A_base_count) \
-        + sum(T_base_count) \
-        + sum(G_base_count) \
-        + sum(C_base_count) \
+    A_base_count = []
+    T_base_count = []
+    G_base_count = []
+    C_base_count = []
+    for _, seq in fa_dict.items():
+        A_base_count.append(seq.count('A'))
+        T_base_count.append(seq.count('T'))
+        G_base_count.append(seq.count('G'))
+        C_base_count.append(seq.count('C'))
 
-    if genome_type == 'softmasked':
-        total_gc_content = (sum(G_base_count)
-                            + sum(C_base_count)
-                            + sum(g_base_count)
-                            + sum(c_base_count)) / total_base * 100
+    total_A_base = sum(A_base_count)
+    total_T_base = sum(T_base_count)
+    total_G_base = sum(G_base_count)
+    total_C_base = sum(C_base_count)
 
-        clear_gc_content = (sum(G_base_count)
-                            + sum(C_base_count)) / clear_base * 100
+    # TE gc
+    repeat_A_base_count = []
+    repeat_T_base_count = []
+    repeat_G_base_count = []
+    repeat_C_base_count = []
+    for record_lst in interspersed_repeat_lst:
+        contig_id = record_lst[4]
+        start_pos = int(record_lst[5])
+        end_pos = int(record_lst[6])
+        seq_repeat = fa_dict[contig_id][start_pos-1:end_pos]
+        repeat_A_base_count.append(seq_repeat.count('A'))
+        repeat_T_base_count.append(seq_repeat.count('T'))
+        repeat_G_base_count.append(seq_repeat.count('G'))
+        repeat_C_base_count.append(seq_repeat.count('C'))
 
-        repeat_gc_content = (sum(g_base_count)
-                             + sum(c_base_count)) / (total_base - clear_base) * 100
+    total_repeat__A_base = sum(repeat_A_base_count)
+    total_repeat_T_base = sum(repeat_T_base_count)
+    total_repeat_G_base = sum(repeat_G_base_count)
+    total_repeat_C_base = sum(repeat_C_base_count)
 
-        print(genome, total_gc_content, clear_gc_content,
-              repeat_gc_content, sep='\t', file=sys.stdout, flush=True)
-    else:
-        print(genome, total_gc_content, sep='\t', file=sys.stdout, flush=True)
-
-
-def main():
-    if args.genome:
-        calculate_gc_content(args.genome, args.genome_type)
-        sys.exit(0)
-
-    if args.genome_list:
-        with open(args.genome_list) as listfh:
-            genome_path_lst = [genome_path.strip().rstrip('\n')
-                               for genome_path in listfh.readlines()]
-
-        # multiple cpu
-        pool = multiprocessing.Pool(args.cpu)
-        pool.map(calculate_gc_content, genome_path_lst)
-        pool.close()
-        pool.join()
+    # output
+    total_te_size = total_repeat__A_base + total_repeat_T_base + \
+        total_repeat_G_base + total_repeat_C_base
+    genome_gc_content = (total_G_base + total_C_base) / \
+        (total_A_base + total_G_base + total_C_base + total_T_base) * 100
+    genome_no_te_gc_content = (total_G_base + total_C_base -
+                               total_repeat_G_base - total_repeat_C_base) / (total_A_base + total_G_base +
+                                                                             total_C_base + total_T_base - total_repeat__A_base - total_repeat_T_base -
+                                                                             total_repeat_G_base - total_repeat_C_base) * 100
+    repeat_gc_content = (total_repeat_G_base + total_repeat_C_base) / (total_repeat__A_base +
+                                                                       total_repeat_T_base + total_repeat_G_base + total_repeat_C_base) * 100
+    print(f'{genome}\t{genome_gc_content:.3f}\t{genome_no_te_gc_content:.3f}\t{repeat_gc_content:.3f}\t{total_te_size}',
+          file=sys.stdout, flush=True)
 
 
 if __name__ == '__main__':
-    main()
+    print(f'Genome\tGC_content\tGC_content_no_TE\tGC_content_Te\tTE_size',
+          file=sys.stdout, flush=True)
+    with open(args.input) as infh:
+        for line in infh:
+            genome, rm_out = line.rstrip('\n').split()
+            interspersed_repeat_lst = grep_sort_rmout(rm_out)
+            calculate_gc_content(genome, interspersed_repeat_lst)
     sys.exit(0)
